@@ -1,807 +1,1923 @@
-import { useState } from "react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
 
+const API = "http://127.0.0.1:8000/api";
+
 function App() {
- useEffect(() => {
-  const getEnergyData = () => {
-    fetch("http://127.0.0.1:8000/api/energy")
-      .then((response) => response.json())
-      .then((data) => {
+  const [activePage, setActivePage] = useState("dashboard");
+
+  // ================= LIVE BACKEND DATA =================
+
+  const [temperature, setTemperature] = useState(-18);
+  const [demand, setDemand] = useState(68);
+  const [solar, setSolar] = useState(428);
+  const [wind, setWind] = useState(316);
+  const [battery, setBattery] = useState(76);
+
+  const [backendOnline, setBackendOnline] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState("--");
+
+  // ================= FORECAST =================
+
+  const [forecast, setForecast] = useState({
+    confidence: 94.7,
+    predictedDemand: 4.8,
+    renewableShare: 82,
+    model: "XGBoost",
+  });
+
+  // ================= OPTIMIZATION =================
+
+  const [optimization, setOptimization] = useState({
+    solar: 72,
+    wind: 58,
+    battery: 32,
+    diesel: 14,
+  });
+
+  // ================= DIGITAL TWIN =================
+
+  const [scenarioTemperature, setScenarioTemperature] =
+    useState(-18);
+
+  const [scenarioDemand, setScenarioDemand] =
+    useState(68);
+
+  const [simulationRunning, setSimulationRunning] =
+    useState(false);
+
+  // =====================================================
+  // LIVE ENERGY BACKEND
+  // =====================================================
+
+  useEffect(() => {
+    const getEnergyData = async () => {
+      try {
+        const response = await fetch(`${API}/energy`);
+
+        if (!response.ok) {
+          throw new Error("Energy API failed");
+        }
+
+        const data = await response.json();
+
         setSolar(data.solar);
         setWind(data.wind);
         setBattery(data.battery);
         setDemand(data.demand);
         setTemperature(data.temperature);
-      })
-      .catch((error) => {
+
+        setBackendOnline(true);
+
+        setLastUpdate(
+          new Date().toLocaleTimeString()
+        );
+      } catch (error) {
         console.error("Backend connection error:", error);
-      });
+        setBackendOnline(false);
+      }
+    };
+
+    getEnergyData();
+
+    // NEW DATA EVERY 4 SECONDS
+    const interval = setInterval(
+      getEnergyData,
+      4000
+    );
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // =====================================================
+  // FORECAST BACKEND
+  // =====================================================
+
+  useEffect(() => {
+    const getForecast = async () => {
+      try {
+        const response = await fetch(
+          `${API}/forecast`
+        );
+
+        if (!response.ok) return;
+
+        const data = await response.json();
+
+        setForecast({
+          confidence: data.confidence,
+          predictedDemand:
+            data.predicted_demand_change,
+          renewableShare:
+            data.renewable_share,
+          model: data.model,
+        });
+      } catch (error) {
+        console.error("Forecast API error:", error);
+      }
+    };
+
+    getForecast();
+
+    const interval = setInterval(
+      getForecast,
+      10000
+    );
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // =====================================================
+  // OPTIMIZATION BACKEND
+  // =====================================================
+
+  useEffect(() => {
+    const getOptimization = async () => {
+      try {
+        const response = await fetch(
+          `${API}/optimization`
+        );
+
+        if (!response.ok) return;
+
+        const data = await response.json();
+
+        setOptimization({
+          solar: data.solar,
+          wind: data.wind,
+          battery: data.battery,
+          diesel: data.diesel,
+        });
+      } catch (error) {
+        console.error(
+          "Optimization API error:",
+          error
+        );
+      }
+    };
+
+    getOptimization();
+
+    const interval = setInterval(
+      getOptimization,
+      10000
+    );
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // =====================================================
+  // DIGITAL TWIN
+  // =====================================================
+
+  const predictedLoad = Math.round(
+    scenarioDemand * 8.4
+  );
+
+  const batteryStress =
+    scenarioTemperature < -25
+      ? "High"
+      : scenarioTemperature < -10
+      ? "Medium"
+      : "Low";
+
+  const runSimulation = () => {
+    setSimulationRunning(true);
+
+    setTimeout(() => {
+      setSimulationRunning(false);
+    }, 2000);
   };
 
-  getEnergyData();
+  // =====================================================
+  // NAVIGATION
+  // =====================================================
 
-  const interval = setInterval(getEnergyData, 4000);
+  const navigate = (page) => {
+    setActivePage(page);
+    window.scrollTo(0, 0);
+  };
 
-  return () => clearInterval(interval);
-}, []);
+  // =====================================================
+  // SIDEBAR
+  // =====================================================
 
-  const [temperature, setTemperature] = useState(-18);
-  const [demand, setDemand] = useState(68);
-  useEffect(() => {
-  const interval = setInterval(() => {
-    setDemand((value) =>
-      Math.max(50, Math.min(85, value + (Math.random() > 0.5 ? 1 : -1)))
-    );
-  }, 4000);
+  const Sidebar = () => (
+    <aside className="sidebar">
 
-  return () => clearInterval(interval);
-}, []);
-  const [simulationRunning, setSimulationRunning] = useState(false);
-  const [solar, setSolar] = useState(428);
-const [wind, setWind] = useState(316);
-  useEffect(() => {
-  const interval = setInterval(() => {
-    setSolar((value) => Math.max(390, Math.min(460, value + Math.floor(Math.random() * 11) - 5)));
-    setWind((value) => Math.max(280, Math.min(350, value + Math.floor(Math.random() * 9) - 4)));
-  }, 3000);
+      <div className="brand">
+        <div className="brand-symbol">✦</div>
 
-  return () => clearInterval(interval);
-}, []);
+        <div>
+          <h2>
+            POLARIS<span> X</span>
+          </h2>
 
-  const renewable = 82;
-  const [battery, setBattery] = useState(76);
-  useEffect(() => {
-  const interval = setInterval(() => {
-    setBattery((value) =>
-      Math.max(55, Math.min(90, value + (Math.random() > 0.5 ? 1 : -1)))
-    );
-  }, 4000);
+          <p>ENERGY INTELLIGENCE</p>
+        </div>
+      </div>
 
-  return () => clearInterval(interval);
-}, []);
+      <div className="station-status">
+        <span className="online-dot"></span>
 
-  const predictedLoad = Math.round(demand * 8.4);
-  const batteryStress = temperature < -25 ? "High" : temperature < -10 ? "Medium" : "Low";
+        <div>
+          <strong>Station Online</strong>
+          <small>Polar Research Base</small>
+        </div>
+      </div>
 
-  return (
-    <div className="polaris-app">
+      <nav className="navigation">
 
-      {/* ================= SIDEBAR ================= */}
-      <aside className="sidebar">
+        <button
+          className={`nav-button ${
+            activePage === "dashboard"
+              ? "active"
+              : ""
+          }`}
+          onClick={() => navigate("dashboard")}
+        >
+          <span>⌂</span>
+          Dashboard
+        </button>
 
-        <div className="brand">
-          <div className="brand-symbol">✦</div>
+        <button
+          className={`nav-button ${
+            activePage === "forecast"
+              ? "active"
+              : ""
+          }`}
+          onClick={() => navigate("forecast")}
+        >
+          <span>◈</span>
+          Energy Forecast
+        </button>
 
-          <div>
-            <h2>POLARIS<span> X</span></h2>
-            <p>ENERGY INTELLIGENCE</p>
-          </div>
+        <button
+          className={`nav-button ${
+            activePage === "digital-twin"
+              ? "active"
+              : ""
+          }`}
+          onClick={() => navigate("digital-twin")}
+        >
+          <span>◇</span>
+          Digital Twin
+        </button>
+
+        <button
+          className={`nav-button ${
+            activePage === "optimization"
+              ? "active"
+              : ""
+          }`}
+          onClick={() => navigate("optimization")}
+        >
+          <span>⚙</span>
+          Optimization
+        </button>
+
+        <button
+          className={`nav-button ${
+            activePage === "monitoring"
+              ? "active"
+              : ""
+          }`}
+          onClick={() => navigate("monitoring")}
+        >
+          <span>◉</span>
+          Live Monitoring
+        </button>
+
+        <button
+          className={`nav-button ${
+            activePage === "alerts"
+              ? "active"
+              : ""
+          }`}
+          onClick={() => navigate("alerts")}
+        >
+          <span>⚠</span>
+          Alerts
+        </button>
+
+      </nav>
+
+      <div className="sidebar-footer">
+
+        <div className="security-icon">
+          ✓
         </div>
 
-        <div className="station-status">
-          <span className="online-dot"></span>
+        <div>
+          <strong>
+            Safety Layer Active
+          </strong>
 
-          <div>
-            <strong>Station Online</strong>
-            <small>Polar Research Base</small>
-          </div>
+          <small>
+            All critical loads protected
+          </small>
         </div>
 
-        <nav className="navigation">
+      </div>
 
-          <button className="nav-button active">
-            <span>⌂</span>
-            Dashboard
-          </button>
+    </aside>
+  );
 
-          <button className="nav-button">
-            <span>◈</span>
-            Energy Forecast
-          </button>
+  // =====================================================
+  // HEADER
+  // =====================================================
 
-          <button className="nav-button">
-            <span>◇</span>
-            Digital Twin
-          </button>
+  const Header = ({ title, description }) => (
+    <header className="top-header">
 
-          <button className="nav-button">
-            <span>⚙</span>
-            Optimization
-          </button>
+      <div>
 
-          <button className="nav-button">
-            <span>◉</span>
-            Live Monitoring
-          </button>
+        <p className="overline">
+          SMART ENERGY COMMAND CENTER
+        </p>
 
-          <button className="nav-button">
-            <span>⚠</span>
-            Alerts
-          </button>
+        <h1>
+          POLARIS X <span>{title}</span>
+        </h1>
 
-        </nav>
+        <p className="header-description">
+          {description}
+        </p>
 
-        <div className="sidebar-footer">
-          <div className="security-icon">✓</div>
+      </div>
+
+      <div className="header-right">
+
+        <div className="weather-widget">
+
+          <div className="snow-icon">
+            ❄
+          </div>
 
           <div>
-            <strong>Safety Layer Active</strong>
-            <small>All critical loads protected</small>
+            <strong>
+              {temperature}°C
+            </strong>
+
+            <small>
+              Polar Conditions
+            </small>
           </div>
+
         </div>
 
-      </aside>
+        <div className="live-status">
+          <span></span>
+          LIVE
+        </div>
 
+        <div className="profile">
+          PX
+        </div>
 
-      {/* ================= MAIN ================= */}
-      <main className="main-content">
+      </div>
 
-        {/* HEADER */}
+    </header>
+  );
 
-        <header className="top-header">
+  // =====================================================
+  // KPI
+  // =====================================================
 
-          <div>
-            <p className="overline">SMART ENERGY COMMAND CENTER</p>
+  const Kpis = () => (
+    <section className="kpi-grid">
 
-            <h1>
-              POLARIS X <span>Dashboard</span>
-            </h1>
+      <div className="kpi-card solar">
 
-            <p className="header-description">
-              AI-powered energy intelligence for polar research stations
-            </p>
-          </div>
+        <div className="kpi-heading">
+          <div className="kpi-icon">☀</div>
 
+          <span className="status-badge good">
+            +12.4%
+          </span>
+        </div>
 
-          <div className="header-right">
+        <p>Solar Generation</p>
 
-            <div className="weather-widget">
-              <div className="snow-icon">❄</div>
+        <h2>
+          {solar}
+          <small>kW</small>
+        </h2>
 
-              <div>
-                <strong>{temperature}°C</strong>
-                <small>Polar Conditions</small>
-              </div>
-            </div>
+        <div className="kpi-bar">
+          <div style={{ width: "72%" }}></div>
+        </div>
 
-            <div className="live-status">
-              <span></span>
-              LIVE
-            </div>
+        <small className="card-note">
+          Renewable source
+        </small>
 
-            <div className="profile">
-              PX
-            </div>
+      </div>
 
-          </div>
+      <div className="kpi-card wind">
 
-        </header>
+        <div className="kpi-heading">
+          <div className="kpi-icon">≋</div>
 
+          <span className="status-badge good">
+            Stable
+          </span>
+        </div>
 
-        {/* ================= KPI CARDS ================= */}
+        <p>Wind Generation</p>
 
-        <section className="kpi-grid">
+        <h2>
+          {wind}
+          <small>kW</small>
+        </h2>
 
-          <div className="kpi-card solar">
+        <div className="kpi-bar">
+          <div style={{ width: "61%" }}></div>
+        </div>
 
-            <div className="kpi-heading">
-              <div className="kpi-icon">☀</div>
+        <small className="card-note">
+          Wind conditions normal
+        </small>
 
-              <span className="status-badge good">
-                +12.4%
-              </span>
-            </div>
+      </div>
 
-            <p>Solar Generation</p>
+      <div className="kpi-card battery">
 
-            <h2>
-              {solar}<small>kW</small>
-            </h2>
+        <div className="kpi-heading">
+          <div className="kpi-icon">▰</div>
 
-            <div className="kpi-bar">
-              <div style={{ width: "72%" }}></div>
-            </div>
+          <span className="status-badge healthy">
+            Healthy
+          </span>
+        </div>
 
-            <small className="card-note">
-              Renewable source
-            </small>
+        <p>Battery State</p>
 
-          </div>
+        <h2>
+          {battery}
+          <small>%</small>
+        </h2>
 
+        <div className="kpi-bar">
+          <div
+            style={{
+              width: `${battery}%`,
+            }}
+          ></div>
+        </div>
 
-          <div className="kpi-card wind">
+        <small className="card-note">
+          2.4 MWh available
+        </small>
 
-            <div className="kpi-heading">
-              <div className="kpi-icon">≋</div>
+      </div>
 
-              <span className="status-badge good">
-                Stable
-              </span>
-            </div>
+      <div className="kpi-card demand">
 
-            <p>Wind Generation</p>
+        <div className="kpi-heading">
+          <div className="kpi-icon">⚡</div>
 
-            <h2>
-              {wind} <small>kW</small>
-            </h2>
+          <span className="status-badge warning">
+            Monitor
+          </span>
+        </div>
 
-            <div className="kpi-bar">
-              <div style={{ width: "61%" }}></div>
-            </div>
+        <p>Energy Demand</p>
 
-            <small className="card-note">
-              Wind conditions normal
-            </small>
+        <h2>
+          {demand}
+          <small>kW</small>
+        </h2>
 
-          </div>
+        <div className="kpi-bar">
+          <div style={{ width: "54%" }}></div>
+        </div>
 
+        <small className="card-note">
+          Within safe operating range
+        </small>
 
-          <div className="kpi-card battery">
+      </div>
 
-            <div className="kpi-heading">
-              <div className="kpi-icon">▰</div>
+    </section>
+  );
 
-              <span className="status-badge healthy">
-                Healthy
-              </span>
-            </div>
+  // =====================================================
+  // DASHBOARD
+  // =====================================================
 
-            <p>Battery State</p>
+  const Dashboard = () => (
+    <>
+      <Header
+        title="Dashboard"
+        description="AI-powered energy intelligence for polar research stations"
+      />
 
-            <h2>
-              {battery}<small>%</small>
-            </h2>
+      <Kpis />
 
-            <div className="kpi-bar">
-              <div style={{ width: `${battery}%` }}></div>
-            </div>
+      <section className="main-grid">
 
-            <small className="card-note">
-              2.4 MWh available
-            </small>
+        <div className="panel energy-panel">
 
-          </div>
+          <div className="panel-header">
 
-
-          <div className="kpi-card demand">
-
-            <div className="kpi-heading">
-              <div className="kpi-icon">⚡</div>
-
-              <span className="status-badge warning">
-                Monitor
-              </span>
-            </div>
-
-            <p>Energy Demand</p>
-           <h2>
-            {demand} <small>kW</small>
-          </h2> 
-
-            <div className="kpi-bar">
-              <div style={{ width: "54%" }}></div>
-            </div>
-
-            <small className="card-note">
-              Within safe operating range
-            </small>
-
-          </div>
-
-        </section>
-
-
-        {/* ================= MAIN VISUAL AREA ================= */}
-
-        <section className="main-grid">
-
-          {/* ENERGY FLOW */}
-
-          <div className="panel energy-panel">
-
-            <div className="panel-header">
-
-              <div>
-                <span className="section-tag blue">
-                  LIVE ENERGY FLOW
-                </span>
-
-                <h2>Power Generation & Distribution</h2>
-              </div>
-
-              <span className="time-label">
-                Updated just now
+            <div>
+              <span className="section-tag blue">
+                LIVE ENERGY FLOW
               </span>
 
+              <h2>
+                Power Generation & Distribution
+              </h2>
             </div>
 
+            <span className="time-label">
+              Updated {lastUpdate}
+            </span>
 
-            <div className="energy-flow">
+          </div>
 
-              <div className="source source-solar">
-                <div className="source-icon">☀</div>
+          <div className="energy-flow">
 
-                <strong>Solar</strong>
-
-                <span>{solar}kW</span>
-
-                <div className="flow-line yellow"></div>
+            <div className="source source-solar">
+              <div className="source-icon">
+                ☀
               </div>
 
+              <strong>Solar</strong>
 
-              <div className="source source-wind">
-                <div className="source-icon">≋</div>
+              <span>
+                {solar} kW
+              </span>
 
-                <strong>Wind</strong>
+              <div className="flow-line yellow"></div>
+            </div>
 
-                <span>{wind} kW</span>
-
-                <div className="flow-line blue"></div>
+            <div className="source source-wind">
+              <div className="source-icon">
+                ≋
               </div>
 
+              <strong>Wind</strong>
 
-              <div className="station-core">
+              <span>
+                {wind} kW
+              </span>
 
-                <div className="core-ring">
+              <div className="flow-line blue"></div>
+            </div>
 
-                  <div className="core-center">
-                    <strong>{solar+wind}</strong>
-                    <span>kW</span>
-                  </div>
+            <div className="station-core">
+
+              <div className="core-ring">
+
+                <div className="core-center">
+
+                  <strong>
+                    {solar + wind}
+                  </strong>
+
+                  <span>kW</span>
 
                 </div>
 
-                <p>Total Generation</p>
-
               </div>
 
-
-              <div className="source source-battery">
-                <div className="source-icon">▰</div>
-
-                <strong>Battery</strong>
-
-                <span>{battery} <small>% </small></span>
-                
-
-                <div className="flow-line green"></div>
-              </div>
-
-
-              <div className="source source-load">
-                <div className="source-icon">⚡</div>
-
-                <strong>Station Load</strong>
-
-                <span>{demand} kW</span>
-
-                <div className="flow-line purple"></div>
-              </div>
+              <p>Total Generation</p>
 
             </div>
 
+            <div className="source source-battery">
 
-            <div className="energy-summary">
-
-              <div>
-                <span>Renewable contribution</span>
-                <strong className="green-text">82%</strong>
+              <div className="source-icon">
+                ▰
               </div>
 
-              <div>
-                <span>Diesel dependency</span>
-                <strong>4%</strong>
+              <strong>Battery</strong>
+
+              <span>
+                {battery}%
+              </span>
+
+              <div className="flow-line green"></div>
+
+            </div>
+
+            <div className="source source-load">
+
+              <div className="source-icon">
+                ⚡
               </div>
 
-              <div>
-                <span>Grid stability</span>
-                <strong className="green-text">Excellent</strong>
-              </div>
+              <strong>Station Load</strong>
+
+              <span>
+                {demand} kW
+              </span>
+
+              <div className="flow-line purple"></div>
 
             </div>
 
           </div>
 
+          <div className="energy-summary">
 
-          {/* AI PANEL */}
-
-          <div className="panel ai-panel">
-
-            <div className="panel-header">
-
-              <div>
-                <span className="section-tag purple">
-                  AI / ML ENGINE
-                </span>
-
-                <h2>Energy Forecast</h2>
-              </div>
-
-              <span className="ai-status">
-                AI ACTIVE
+            <div>
+              <span>
+                Renewable contribution
               </span>
 
+              <strong className="green-text">
+                82%
+              </strong>
             </div>
 
+            <div>
+              <span>
+                Diesel dependency
+              </span>
 
-            <div className="ai-confidence">
-
-              <div className="confidence-circle">
-
-                <strong>94.7%</strong>
-                <span>confidence</span>
-
-              </div>
-
-              <div>
-                <strong>High confidence prediction</strong>
-
-                <p>
-                  Next 6 hours show stable renewable generation.
-                </p>
-              </div>
-
+              <strong>4%</strong>
             </div>
 
+            <div>
+              <span>
+                Grid stability
+              </span>
 
-            <div className="forecast-chart">
-
-              <div className="chart-lines"></div>
-
-              <div className="forecast-wave"></div>
-
-              <div className="chart-dot d1"></div>
-              <div className="chart-dot d2"></div>
-              <div className="chart-dot d3"></div>
-              <div className="chart-dot d4"></div>
-              <div className="chart-dot d5"></div>
-
-            </div>
-
-
-            <div className="ai-metrics">
-
-              <div>
-                <span>Predicted demand</span>
-                <strong>+4.8%</strong>
-              </div>
-
-              <div>
-                <span>Renewable share</span>
-                <strong>82%</strong>
-              </div>
-
-            </div>
-
-
-            <div className="model-name">
-              <span>Model</span>
-              <strong>XGBoost</strong>
-              <span>Forecast Engine</span>
+              <strong className="green-text">
+                Excellent
+              </strong>
             </div>
 
           </div>
 
-        </section>
+        </div>
 
+        <div className="panel ai-panel">
 
-        {/* ================= LOWER SECTION ================= */}
+          <div className="panel-header">
 
-        <section className="lower-grid">
+            <div>
 
+              <span className="section-tag purple">
+                AI / ML ENGINE
+              </span>
 
-          {/* DIGITAL TWIN */}
+              <h2>
+                Energy Forecast
+              </h2>
 
-          <div className="panel simulation-panel">
+            </div>
 
-            <div className="panel-header">
+            <span className="ai-status">
+              AI ACTIVE
+            </span>
 
-              <div>
-                <span className="section-tag orange">
-                  DIGITAL TWIN
-                </span>
+          </div>
 
-                <h2>What-If Simulation</h2>
-              </div>
+          <div className="ai-confidence">
 
-              <span className="simulation-status">
-                SIMULATOR READY
+            <div className="confidence-circle">
+
+              <strong>
+                {forecast.confidence}%
+              </strong>
+
+              <span>
+                confidence
               </span>
 
             </div>
 
+            <div>
 
-            <p className="panel-description">
-              Test weather and demand scenarios before applying
-              decisions to the real station.
-            </p>
+              <strong>
+                High confidence prediction
+              </strong>
 
-
-            <div className="simulation-controls">
-
-              <div className="slider-control">
-
-                <div>
-                  <span>Temperature</span>
-                  <strong>{temperature}°C</strong>
-                </div>
-
-                <input
-                  type="range"
-                  min="-40"
-                  max="10"
-                  value={temperature}
-                  onChange={(e) =>
-                    setTemperature(Number(e.target.value))
-                  }
-                />
-
-              </div>
-
-
-              <div className="slider-control">
-
-                <div>
-                  <span>Energy Demand</span>
-                  <strong>{demand}%</strong>
-                </div>
-
-                <input
-                  type="range"
-                  min="20"
-                  max="100"
-                  value={demand}
-                  onChange={(e) =>
-                    setDemand(Number(e.target.value))
-                  }
-                />
-
-              </div>
+              <p>
+                Next 6 hours show stable
+                renewable generation.
+              </p>
 
             </div>
 
+          </div>
 
-            <button
-              className={`simulation-button ${
-                simulationRunning ? "running" : ""
-              }`}
-              onClick={() =>
-                setSimulationRunning(!simulationRunning)
-              }
-            >
-              {simulationRunning
-                ? "● Simulation Running"
-                : "Run What-If Simulation →"}
-            </button>
+          <div className="forecast-chart">
 
+            <div className="chart-lines"></div>
+            <div className="forecast-wave"></div>
 
-            <div className="simulation-results">
+            <div className="chart-dot d1"></div>
+            <div className="chart-dot d2"></div>
+            <div className="chart-dot d3"></div>
+            <div className="chart-dot d4"></div>
+            <div className="chart-dot d5"></div>
+
+          </div>
+
+          <div className="ai-metrics">
+
+            <div>
+              <span>
+                Predicted demand
+              </span>
+
+              <strong>
+                +{forecast.predictedDemand}%
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Renewable share
+              </span>
+
+              <strong>
+                {forecast.renewableShare}%
+              </strong>
+            </div>
+
+          </div>
+
+          <div className="model-name">
+
+            <span>Model</span>
+
+            <strong>
+              {forecast.model}
+            </strong>
+
+            <span>
+              Forecast Engine
+            </span>
+
+          </div>
+
+        </div>
+
+      </section>
+
+      <section className="lower-grid">
+
+        <div className="panel simulation-panel">
+
+          <div className="panel-header">
+
+            <div>
+
+              <span className="section-tag orange">
+                DIGITAL TWIN
+              </span>
+
+              <h2>
+                What-If Simulation
+              </h2>
+
+            </div>
+
+            <span className="simulation-status">
+              SIMULATOR READY
+            </span>
+
+          </div>
+
+          <p className="panel-description">
+            Test weather and demand scenarios before
+            applying decisions to the real station.
+          </p>
+
+          <div className="simulation-controls">
+
+            <div className="slider-control">
 
               <div>
-                <span>Predicted Load</span>
-                <strong>{predictedLoad} kW</strong>
-              </div>
 
-              <div>
-                <span>Renewable Share</span>
-                <strong>{renewable}%</strong>
-              </div>
+                <span>Temperature</span>
 
-              <div>
-                <span>Battery Stress</span>
-
-                <strong
-                  className={
-                    batteryStress === "High"
-                      ? "red-text"
-                      : batteryStress === "Medium"
-                      ? "orange-text"
-                      : "green-text"
-                  }
-                >
-                  {batteryStress}
+                <strong>
+                  {scenarioTemperature}°C
                 </strong>
 
               </div>
 
+              <input
+                type="range"
+                min="-40"
+                max="10"
+                value={scenarioTemperature}
+                onChange={(e) =>
+                  setScenarioTemperature(
+                    Number(e.target.value)
+                  )
+                }
+              />
+
+            </div>
+
+            <div className="slider-control">
+
+              <div>
+
+                <span>Energy Demand</span>
+
+                <strong>
+                  {scenarioDemand}%
+                </strong>
+
+              </div>
+
+              <input
+                type="range"
+                min="20"
+                max="100"
+                value={scenarioDemand}
+                onChange={(e) =>
+                  setScenarioDemand(
+                    Number(e.target.value)
+                  )
+                }
+              />
+
             </div>
 
           </div>
 
+          <button
+            className={`simulation-button ${
+              simulationRunning
+                ? "running"
+                : ""
+            }`}
+            onClick={runSimulation}
+          >
+            {simulationRunning
+              ? "● Simulation Running"
+              : "Run What-If Simulation →"}
+          </button>
 
-          {/* OPTIMIZATION */}
+          <div className="simulation-results">
 
-          <div className="panel optimization-panel">
-
-            <div className="panel-header">
-
-              <div>
-                <span className="section-tag green">
-                  OPTIMIZATION ENGINE
-                </span>
-
-                <h2>Energy Dispatch</h2>
-              </div>
-
-              <span className="optimized">
-                OPTIMIZED
-              </span>
-
-            </div>
-
-
-            <div className="dispatch-list">
-
-              <div className="dispatch-item">
-
-                <div className="dispatch-label">
-                  <span className="dispatch-icon solar-bg">☀</span>
-                  Solar
-                </div>
-
-                <div className="dispatch-track">
-                  <div style={{ width: "72%" }}></div>
-                </div>
-
-                <strong>72%</strong>
-
-              </div>
-
-
-              <div className="dispatch-item">
-
-                <div className="dispatch-label">
-                  <span className="dispatch-icon wind-bg">≋</span>
-                  Wind
-                </div>
-
-                <div className="dispatch-track">
-                  <div style={{ width: "58%" }}></div>
-                </div>
-
-                <strong>58%</strong>
-
-              </div>
-
-
-              <div className="dispatch-item">
-
-                <div className="dispatch-label">
-                  <span className="dispatch-icon battery-bg">▰</span>
-                  Battery
-                </div>
-
-                <div className="dispatch-track">
-                  <div style={{ width: "32%" }}></div>
-                </div>
-
-                <strong>32%</strong>
-
-              </div>
-
-
-              <div className="dispatch-item">
-
-                <div className="dispatch-label">
-                  <span className="dispatch-icon diesel-bg">⚡</span>
-                  Diesel
-                </div>
-
-                <div className="dispatch-track">
-                  <div style={{ width: "14%" }}></div>
-                </div>
-
-                <strong>14%</strong>
-
-              </div>
-
-            </div>
-
-
-            <div className="optimization-footer">
-
-              <span>Optimization objective</span>
+            <div>
+              <span>Predicted Load</span>
 
               <strong>
-                Minimum diesel + maximum renewable
+                {predictedLoad} kW
               </strong>
+            </div>
 
+            <div>
+              <span>Renewable Share</span>
+
+              <strong>82%</strong>
+            </div>
+
+            <div>
+              <span>Battery Stress</span>
+
+              <strong
+                className={
+                  batteryStress === "High"
+                    ? "red-text"
+                    : batteryStress === "Medium"
+                    ? "orange-text"
+                    : "green-text"
+                }
+              >
+                {batteryStress}
+              </strong>
             </div>
 
           </div>
 
+        </div>
 
-          {/* SYSTEM HEALTH */}
+        <div className="panel optimization-panel">
 
-          <div className="panel health-panel">
+          <div className="panel-header">
 
-            <div className="panel-header">
+            <div>
 
-              <div>
-                <span className="section-tag red">
-                  SAFETY LAYER
-                </span>
+              <span className="section-tag green">
+                OPTIMIZATION ENGINE
+              </span>
 
-                <h2>System Health</h2>
+              <h2>
+                Energy Dispatch
+              </h2>
+
+            </div>
+
+            <span className="optimized">
+              OPTIMIZED
+            </span>
+
+          </div>
+
+          <div className="dispatch-list">
+
+            {[
+              ["solar-bg", "☀", "Solar", optimization.solar],
+              ["wind-bg", "≋", "Wind", optimization.wind],
+              ["battery-bg", "▰", "Battery", optimization.battery],
+              ["diesel-bg", "⚡", "Diesel", optimization.diesel],
+            ].map(([bg, icon, name, value]) => (
+              <div className="dispatch-item" key={name}>
+
+                <div className="dispatch-label">
+
+                  <span
+                    className={`dispatch-icon ${bg}`}
+                  >
+                    {icon}
+                  </span>
+
+                  {name}
+
+                </div>
+
+                <div className="dispatch-track">
+
+                  <div
+                    style={{
+                      width: `${value}%`,
+                    }}
+                  ></div>
+
+                </div>
+
+                <strong>
+                  {value}%
+                </strong>
+
               </div>
+            ))}
 
-              <span className="healthy-badge">
-                NORMAL
+          </div>
+
+          <div className="optimization-footer">
+
+            <span>
+              Optimization objective
+            </span>
+
+            <strong>
+              Minimum diesel + maximum renewable
+            </strong>
+
+          </div>
+
+        </div>
+
+        <SystemHealth />
+
+      </section>
+
+      <Footer />
+    </>
+  );
+
+  // =====================================================
+  // FORECAST
+  // =====================================================
+
+  const ForecastPage = () => (
+    <>
+      <Header
+        title="Energy Forecast"
+        description="AI-powered prediction of station demand and renewable generation"
+      />
+
+      <Kpis />
+
+      <section className="main-grid">
+
+        <div className="panel ai-panel">
+
+          <div className="panel-header">
+
+            <div>
+
+              <span className="section-tag purple">
+                AI / ML ENGINE
+              </span>
+
+              <h2>
+                Energy Forecast
+              </h2>
+
+            </div>
+
+            <span className="ai-status">
+              AI ACTIVE
+            </span>
+
+          </div>
+
+          <div className="ai-confidence">
+
+            <div className="confidence-circle">
+
+              <strong>
+                {forecast.confidence}%
+              </strong>
+
+              <span>
+                confidence
               </span>
 
             </div>
 
+            <div>
 
-            <div className="health-list">
+              <strong>
+                {forecast.model}
+              </strong>
 
-              <div>
-                <span>
-                  <i></i>
-                  Smart Sensors
-                </span>
+              <p>
+                Predicted demand change:
+                <strong>
+                  {" "}
+                  +{forecast.predictedDemand}%
+                </strong>
+              </p>
 
-                <strong>ONLINE</strong>
-              </div>
+              <p>
+                Renewable share:
+                <strong>
+                  {" "}
+                  {forecast.renewableShare}%
+                </strong>
+              </p>
 
-              <div>
-                <span>
-                  <i></i>
-                  AI Engine
-                </span>
-
-                <strong>ONLINE</strong>
-              </div>
-
-              <div>
-                <span>
-                  <i></i>
-                  MQTT Network
-                </span>
-
-                <strong>ONLINE</strong>
-              </div>
-
-              <div>
-                <span>
-                  <i></i>
-                  Critical Loads
-                </span>
-
-                <strong>PROTECTED</strong>
-              </div>
-
-            </div>
-
-
-            <div className="last-alert">
-              <span>✓</span>
-
-              <div>
-                <strong>No critical anomalies</strong>
-                <small>System checked 12 seconds ago</small>
-              </div>
             </div>
 
           </div>
 
-        </section>
+          <div className="forecast-chart">
 
+            <div className="chart-lines"></div>
+            <div className="forecast-wave"></div>
 
-        {/* FOOTER */}
+            <div className="chart-dot d1"></div>
+            <div className="chart-dot d2"></div>
+            <div className="chart-dot d3"></div>
+            <div className="chart-dot d4"></div>
+            <div className="chart-dot d5"></div>
 
-        <footer className="footer">
+          </div>
 
-          <span>POLARIS X</span>
+          <div className="ai-metrics">
 
-          <p>
-            Predict • Simulate • Optimize • Protect
+            <div>
+              <span>Live Solar</span>
+              <strong>{solar} kW</strong>
+            </div>
+
+            <div>
+              <span>Live Wind</span>
+              <strong>{wind} kW</strong>
+            </div>
+
+          </div>
+
+        </div>
+
+        <div className="panel health-panel">
+
+          <div className="panel-header">
+
+            <div>
+
+              <span className="section-tag blue">
+                LIVE INPUTS
+              </span>
+
+              <h2>
+                Forecast Conditions
+              </h2>
+
+            </div>
+
+          </div>
+
+          <div className="health-list">
+
+            <div>
+              <span>Temperature</span>
+              <strong>{temperature}°C</strong>
+            </div>
+
+            <div>
+              <span>Demand</span>
+              <strong>{demand} kW</strong>
+            </div>
+
+            <div>
+              <span>Solar</span>
+              <strong>{solar} kW</strong>
+            </div>
+
+            <div>
+              <span>Wind</span>
+              <strong>{wind} kW</strong>
+            </div>
+
+            <div>
+              <span>Battery</span>
+              <strong>{battery}%</strong>
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+      <Footer />
+    </>
+  );
+
+  // =====================================================
+  // DIGITAL TWIN
+  // =====================================================
+
+  const DigitalTwinPage = () => (
+    <>
+      <Header
+        title="Digital Twin"
+        description="Simulate extreme weather and demand scenarios before implementation"
+      />
+
+      <section className="lower-grid">
+
+        <div className="panel simulation-panel">
+
+          <div className="panel-header">
+
+            <div>
+
+              <span className="section-tag orange">
+                DIGITAL TWIN
+              </span>
+
+              <h2>
+                What-If Simulation
+              </h2>
+
+            </div>
+
+            <span className="simulation-status">
+              {simulationRunning
+                ? "SIMULATION RUNNING"
+                : "SIMULATOR READY"}
+            </span>
+
+          </div>
+
+          <p className="panel-description">
+            Adjust conditions and observe predicted
+            system behaviour.
           </p>
 
-          <span>v1.0 Prototype</span>
+          <div className="simulation-controls">
 
-        </footer>
+            <div className="slider-control">
 
+              <div>
+                <span>Temperature</span>
+
+                <strong>
+                  {scenarioTemperature}°C
+                </strong>
+              </div>
+
+              <input
+                type="range"
+                min="-40"
+                max="10"
+                value={scenarioTemperature}
+                onChange={(e) =>
+                  setScenarioTemperature(
+                    Number(e.target.value)
+                  )
+                }
+              />
+
+            </div>
+
+            <div className="slider-control">
+
+              <div>
+                <span>Energy Demand</span>
+
+                <strong>
+                  {scenarioDemand}%
+                </strong>
+              </div>
+
+              <input
+                type="range"
+                min="20"
+                max="100"
+                value={scenarioDemand}
+                onChange={(e) =>
+                  setScenarioDemand(
+                    Number(e.target.value)
+                  )
+                }
+              />
+
+            </div>
+
+          </div>
+
+          <button
+            className={`simulation-button ${
+              simulationRunning
+                ? "running"
+                : ""
+            }`}
+            onClick={runSimulation}
+          >
+            {simulationRunning
+              ? "● Simulation Running"
+              : "Run What-If Simulation →"}
+          </button>
+
+          <div className="simulation-results">
+
+            <div>
+              <span>Predicted Load</span>
+
+              <strong>
+                {predictedLoad} kW
+              </strong>
+            </div>
+
+            <div>
+              <span>Renewable Share</span>
+
+              <strong>
+                82%
+              </strong>
+            </div>
+
+            <div>
+              <span>Battery Stress</span>
+
+              <strong
+                className={
+                  batteryStress === "High"
+                    ? "red-text"
+                    : batteryStress === "Medium"
+                    ? "orange-text"
+                    : "green-text"
+                }
+              >
+                {batteryStress}
+              </strong>
+            </div>
+
+          </div>
+
+        </div>
+
+        <div className="panel health-panel">
+
+          <div className="panel-header">
+
+            <div>
+
+              <span className="section-tag blue">
+                LIVE BASELINE
+              </span>
+
+              <h2>
+                Current Station
+              </h2>
+
+            </div>
+
+          </div>
+
+          <div className="health-list">
+
+            <div>
+              <span>Temperature</span>
+              <strong>{temperature}°C</strong>
+            </div>
+
+            <div>
+              <span>Demand</span>
+              <strong>{demand} kW</strong>
+            </div>
+
+            <div>
+              <span>Solar</span>
+              <strong>{solar} kW</strong>
+            </div>
+
+            <div>
+              <span>Wind</span>
+              <strong>{wind} kW</strong>
+            </div>
+
+            <div>
+              <span>Battery</span>
+              <strong>{battery}%</strong>
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+      <Footer />
+    </>
+  );
+
+  // =====================================================
+  // OPTIMIZATION
+  // =====================================================
+
+  const OptimizationPage = () => (
+    <>
+      <Header
+        title="Optimization"
+        description="Multi-source energy dispatch and renewable-first optimization"
+      />
+
+      <section className="lower-grid">
+
+        <div className="panel optimization-panel">
+
+          <div className="panel-header">
+
+            <div>
+
+              <span className="section-tag green">
+                OPTIMIZATION ENGINE
+              </span>
+
+              <h2>
+                Energy Dispatch
+              </h2>
+
+            </div>
+
+            <span className="optimized">
+              OPTIMIZED
+            </span>
+
+          </div>
+
+          <div className="dispatch-list">
+
+            {[
+              ["solar-bg", "☀", "Solar", optimization.solar],
+              ["wind-bg", "≋", "Wind", optimization.wind],
+              ["battery-bg", "▰", "Battery", optimization.battery],
+              ["diesel-bg", "⚡", "Diesel", optimization.diesel],
+            ].map(([bg, icon, name, value]) => (
+              <div className="dispatch-item" key={name}>
+
+                <div className="dispatch-label">
+
+                  <span
+                    className={`dispatch-icon ${bg}`}
+                  >
+                    {icon}
+                  </span>
+
+                  {name}
+
+                </div>
+
+                <div className="dispatch-track">
+
+                  <div
+                    style={{
+                      width: `${value}%`,
+                    }}
+                  ></div>
+
+                </div>
+
+                <strong>
+                  {value}%
+                </strong>
+
+              </div>
+            ))}
+
+          </div>
+
+          <div className="optimization-footer">
+
+            <span>
+              Optimization objective
+            </span>
+
+            <strong>
+              Minimum diesel + maximum renewable
+            </strong>
+
+          </div>
+
+        </div>
+
+        <div className="panel energy-panel">
+
+          <div className="panel-header">
+
+            <div>
+
+              <span className="section-tag blue">
+                LIVE INPUT
+              </span>
+
+              <h2>
+                Current Energy Balance
+              </h2>
+
+            </div>
+
+          </div>
+
+          <div className="energy-summary">
+
+            <div>
+              <span>Solar</span>
+              <strong>{solar} kW</strong>
+            </div>
+
+            <div>
+              <span>Wind</span>
+              <strong>{wind} kW</strong>
+            </div>
+
+            <div>
+              <span>Battery</span>
+              <strong>{battery}%</strong>
+            </div>
+
+            <div>
+              <span>Demand</span>
+              <strong>{demand} kW</strong>
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+      <Footer />
+    </>
+  );
+
+  // =====================================================
+  // LIVE MONITORING
+  // DIFFERENT FROM DASHBOARD
+  // =====================================================
+
+  const MonitoringPage = () => (
+    <>
+      <Header
+        title="Live Monitoring"
+        description="Real-time station telemetry and sensor health"
+      />
+
+      <section className="kpi-grid">
+
+        <div className="kpi-card solar">
+
+          <div className="kpi-heading">
+            <div className="kpi-icon">☀</div>
+
+            <span className="status-badge good">
+              LIVE
+            </span>
+          </div>
+
+          <p>Solar Sensor</p>
+
+          <h2>
+            {solar}
+            <small>kW</small>
+          </h2>
+
+          <small className="card-note">
+            Backend telemetry
+          </small>
+
+        </div>
+
+        <div className="kpi-card wind">
+
+          <div className="kpi-heading">
+            <div className="kpi-icon">≋</div>
+
+            <span className="status-badge good">
+              LIVE
+            </span>
+          </div>
+
+          <p>Wind Sensor</p>
+
+          <h2>
+            {wind}
+            <small>kW</small>
+          </h2>
+
+          <small className="card-note">
+            Backend telemetry
+          </small>
+
+        </div>
+
+        <div className="kpi-card battery">
+
+          <div className="kpi-heading">
+            <div className="kpi-icon">▰</div>
+
+            <span className="status-badge healthy">
+              LIVE
+            </span>
+          </div>
+
+          <p>Battery Sensor</p>
+
+          <h2>
+            {battery}
+            <small>%</small>
+          </h2>
+
+          <small className="card-note">
+            Storage telemetry
+          </small>
+
+        </div>
+
+        <div className="kpi-card demand">
+
+          <div className="kpi-heading">
+            <div className="kpi-icon">⚡</div>
+
+            <span className="status-badge warning">
+              LIVE
+            </span>
+          </div>
+
+          <p>Demand Sensor</p>
+
+          <h2>
+            {demand}
+            <small>kW</small>
+          </h2>
+
+          <small className="card-note">
+            Station load telemetry
+          </small>
+
+        </div>
+
+      </section>
+
+      <section className="main-grid">
+
+        <div className="panel energy-panel">
+
+          <div className="panel-header">
+
+            <div>
+
+              <span className="section-tag blue">
+                REAL-TIME TELEMETRY
+              </span>
+
+              <h2>
+                Sensor Readings
+              </h2>
+
+            </div>
+
+            <span className="time-label">
+              {backendOnline
+                ? `CONNECTED • ${lastUpdate}`
+                : "BACKEND OFFLINE"}
+            </span>
+
+          </div>
+
+          <div className="health-list">
+
+            <div>
+              <span>
+                Solar Generation
+              </span>
+
+              <strong>
+                {solar} kW
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Wind Generation
+              </span>
+
+              <strong>
+                {wind} kW
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Battery State
+              </span>
+
+              <strong>
+                {battery}%
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Station Demand
+              </span>
+
+              <strong>
+                {demand} kW
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Temperature
+              </span>
+
+              <strong>
+                {temperature}°C
+              </strong>
+            </div>
+
+          </div>
+
+        </div>
+
+        <SystemHealth />
+
+      </section>
+
+      <Footer />
+    </>
+  );
+
+  // =====================================================
+  // SYSTEM HEALTH
+  // =====================================================
+
+  function SystemHealth() {
+    return (
+      <div className="panel health-panel">
+
+        <div className="panel-header">
+
+          <div>
+
+            <span className="section-tag red">
+              SAFETY LAYER
+            </span>
+
+            <h2>
+              System Health
+            </h2>
+
+          </div>
+
+          <span className="healthy-badge">
+            NORMAL
+          </span>
+
+        </div>
+
+        <div className="health-list">
+
+          <div>
+            <span>
+              <i></i>
+              Smart Sensors
+            </span>
+
+            <strong>
+              {backendOnline
+                ? "ONLINE"
+                : "OFFLINE"}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              <i></i>
+              AI Engine
+            </span>
+
+            <strong>
+              ONLINE
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              <i></i>
+              MQTT Network
+            </span>
+
+            <strong>
+              ONLINE
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              <i></i>
+              Critical Loads
+            </span>
+
+            <strong>
+              PROTECTED
+            </strong>
+          </div>
+
+        </div>
+
+        <div className="last-alert">
+
+          <span>✓</span>
+
+          <div>
+
+            <strong>
+              No critical anomalies
+            </strong>
+
+            <small>
+              Live monitoring active
+            </small>
+
+          </div>
+
+        </div>
+
+      </div>
+    );
+  }
+
+  // =====================================================
+  // ALERTS
+  // =====================================================
+
+  const AlertsPage = () => (
+    <>
+      <Header
+        title="Alerts"
+        description="Safety layer, early warnings and critical-load protection"
+      />
+
+      <section className="lower-grid">
+
+        <SystemHealth />
+
+        <div className="panel optimization-panel">
+
+          <div className="panel-header">
+
+            <div>
+
+              <span className="section-tag orange">
+                LIVE CONDITIONS
+              </span>
+
+              <h2>
+                Current Station Status
+              </h2>
+
+            </div>
+
+          </div>
+
+          <div className="dispatch-list">
+
+            <div className="dispatch-item">
+              <div className="dispatch-label">
+                Temperature
+              </div>
+
+              <strong>
+                {temperature}°C
+              </strong>
+            </div>
+
+            <div className="dispatch-item">
+              <div className="dispatch-label">
+                Energy Demand
+              </div>
+
+              <strong>
+                {demand} kW
+              </strong>
+            </div>
+
+            <div className="dispatch-item">
+              <div className="dispatch-label">
+                Battery
+              </div>
+
+              <strong>
+                {battery}%
+              </strong>
+            </div>
+
+            <div className="dispatch-item">
+              <div className="dispatch-label">
+                Renewable Generation
+              </div>
+
+              <strong>
+                {solar + wind} kW
+              </strong>
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+      <Footer />
+    </>
+  );
+
+  // =====================================================
+  // FOOTER
+  // =====================================================
+
+  const Footer = () => (
+    <footer className="footer">
+
+      <span>POLARIS X</span>
+
+      <p>
+        Predict • Simulate • Optimize • Protect
+      </p>
+
+      <span>
+        v1.0 Prototype
+      </span>
+
+    </footer>
+  );
+
+  // =====================================================
+  // PAGE ROUTER
+  // =====================================================
+
+  const renderPage = () => {
+    switch (activePage) {
+
+      case "forecast":
+        return <ForecastPage />;
+
+      case "digital-twin":
+        return <DigitalTwinPage />;
+
+      case "optimization":
+        return <OptimizationPage />;
+
+      case "monitoring":
+        return <MonitoringPage />;
+
+      case "alerts":
+        return <AlertsPage />;
+
+      default:
+        return <Dashboard />;
+    }
+  };
+
+  return (
+    <div className="polaris-app">
+
+      <Sidebar />
+
+      <main className="main-content">
+        {renderPage()}
       </main>
 
     </div>
