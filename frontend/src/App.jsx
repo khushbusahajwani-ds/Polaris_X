@@ -53,7 +53,7 @@ function App() {
   useEffect(() => {
     const getEnergyData = async () => {
       try {
-        const response = await fetch(`${API}/energy`);
+        const response = await fetch(`${API}/api/energy`);
 
         if (!response.ok) {
           throw new Error("Energy API failed");
@@ -96,9 +96,7 @@ function App() {
   useEffect(() => {
     const getForecast = async () => {
       try {
-        const response = await fetch(
-          `${API}/forecast`
-        );
+        const response = await fetch(`${API}/api/forecast`);
 
         if (!response.ok) return;
 
@@ -134,9 +132,7 @@ function App() {
   useEffect(() => {
     const getOptimization = async () => {
       try {
-        const response = await fetch(
-          `${API}/optimization`
-        );
+        const response = await fetch(`${API}/api/optimization`);
 
         if (!response.ok) return;
 
