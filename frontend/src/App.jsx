@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 
-const API = "https://polaris-x-9fi3.onrender.com";
+const API = "https://polaris-x-backend.onrender.com";
 
 function App() {
   const [activePage, setActivePage] = useState("dashboard");
